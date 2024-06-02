@@ -7,6 +7,8 @@ import {PublicInputParseLib} from "./library/ZkSpvLib.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 
+import "hardhat/console.sol";
+
 contract ZkLightClient is Ownable{
     struct Query {
         address user;
@@ -67,10 +69,9 @@ contract ZkLightClient is Ownable{
 
     // Verifies a query and refunds the user if successful
     // TODO: spvAddress and manager should be set only once for each ZkLightClient contract
-    function verifyQuery(bytes32 txHash, bytes calldata proof) external returns (VerificationResult memory) {
+    function verifyQuery(bytes32 txHash, bytes calldata proof, bytes calldata rawTxData) external returns (VerificationResult memory) {
         Query storage query = queries[txHash];
         require(query.user != address(0) && !query.isSuccessful, "Query non-existent or already successful");
-
 
         // Verify the ZKP using the IZkSpv contract
         IZKSpv zkSpv = IZKSpv(spvAddress);
@@ -79,19 +80,19 @@ contract ZkLightClient is Ownable{
         // Parse the public input data from the proof
         PublicInputParseLib.PublicInputData memory publicInputData = zkSpv.parseTxProof(proof);
 
-        // Verify Merkle root exists in the IORSpvData contract
-        ISpvData spvData = ISpvData(manager);
+        // // Verify Merkle root exists in the IORSpvData contract
+        // ISpvData spvData = ISpvData(manager);
 
-        require(
-            spvData.getStartBlockNumber(publicInputData.merkle_root) != 0,
-                "Invalid Merkle root"
-            );
+        // require(
+        //     spvData.getStartBlockNumber(publicInputData.merkle_root) != 0,
+        //         "Invalid Merkle root"
+        //     );
 
-        // Verify the commit block hash and target block hash
-        require(
-                publicInputData.commit_tx_block_hash == publicInputData.commit_tx_batch_target_block_hash,
-                "Commit block hash does not match target block hash in batch"
-            );
+        // // Verify the commit block hash and target block hash
+        // require(
+        //         publicInputData.commit_tx_block_hash == publicInputData.commit_tx_batch_target_block_hash,
+        //         "Commit block hash does not match target block hash in batch"
+        //     );
 
         // Receipt
         VerificationResult memory result = VerificationResult({
@@ -99,7 +100,13 @@ contract ZkLightClient is Ownable{
         });
 
         // Raw data
+        console.logString("rawTxData:");
+        console.logBytes(rawTxData);
+        bytes32 computedHash = keccak256(rawTxData);
 
+        // require(computedHash == txHash, "Computed Hash does not match tx Hash.");
+        console.logString("computedHash:");
+        console.logBytes32(computedHash);
 
         query.isSuccessful = true;
         payable(query.user).transfer(LOCK_AMOUNT);
