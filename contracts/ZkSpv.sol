@@ -22,8 +22,9 @@ contract ZKSpv is Ownable, IZKSpv {
 
     // Function to verify a transaction proof by calling another contract
     function verifyTx(bytes calldata proof) external override returns (bool) {
-        IVerifier verifier = IVerifier(verifierContractAddress);
-        return verifier.verify(proof);
+        (bool success, ) = verifierContractAddress.call(proof);
+        require(success, "Verification failed.");
+        return success;
     }
 
     function parseTxProof(bytes calldata proofData) external pure override returns (PublicInputParseLib.PublicInputData memory) {
