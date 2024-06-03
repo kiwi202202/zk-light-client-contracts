@@ -100,37 +100,39 @@ contract ZkLightClient is Ownable{
         // Parse the public input data from the proof
         PublicInputParseLib.PublicInputData memory publicInputData = zkSpv.parseTxProof(proof);
 
-        // // Verify Merkle root exists in the IORSpvData contract
-        // ISpvData spvData = ISpvData(manager);
+        // Verify Merkle root exists in the IORSpvData contract
+        ISpvData spvData = ISpvData(manager);
 
-        // require(
-        //     spvData.getStartBlockNumber(publicInputData.merkle_root) != 0,
-        //         "Invalid Merkle root"
-        //     );
+        require(
+            spvData.getStartBlockNumber(publicInputData.merkle_root) != 0,
+                "Invalid Merkle root"
+            );
 
-        // // Verify the commit block hash and target block hash
-        // require(
-        //         publicInputData.commit_tx_block_hash == publicInputData.commit_tx_batch_target_block_hash,
-        //         "Commit block hash does not match target block hash in batch"
-        //     );
+        // Verify the commit block hash and target block hash
+        require(
+                publicInputData.commit_tx_block_hash == publicInputData.commit_tx_batch_target_block_hash,
+                "Commit block hash does not match target block hash in batch"
+            );
 
-
+        require(publicInputData.tx_hash == txHash, "Tx Hash in proof public data does not match target tx Hash.");
+        // console.log("public input data tx_hash:");
+        // console.logBytes32(publicInputData.tx_hash);
 
         // Raw data
-        console.logString("rawTxData:");
-        console.logBytes(rawTxData);
+        // console.logString("rawTxData:");
+        // console.logBytes(rawTxData);
         bytes32 computedHash = keccak256(rawTxData);
 
-        // require(computedHash == txHash, "Computed Hash does not match tx Hash.");
-        console.logString("computedHash:");
-        console.logBytes32(computedHash);
+        require(computedHash == txHash, "Computed Hash does not match tx Hash.");
+        // console.logString("computedHash:");
+        // console.logBytes32(computedHash);
 
         bytes memory actualRlpData = slice(rawTxData, 1, rawTxData.length - 1);
 
         RLPReader.RLPItem[] memory ls = actualRlpData.toRlpItem().toList();
 
-        console.logString("actualRlpData:");
-        console.logBytes(actualRlpData);
+        // console.logString("actualRlpData:");
+        // console.logBytes(actualRlpData);
 
         EIP1559Transaction memory eip1559Tx = EIP1559Transaction({
             chainId: ls[0].toUint(),
@@ -153,20 +155,20 @@ contract ZkLightClient is Ownable{
             eip1559Tx.s = bytes32(ls[11].toBytes());
         }
 
-        console.log("chainId", eip1559Tx.chainId);
-        console.log("nonce", eip1559Tx.nonce);
-        console.log("maxPriorityFeePerGas", eip1559Tx.maxPriorityFeePerGas);
-        console.log("maxFeePerGas", eip1559Tx.maxFeePerGas);
-        console.log("gasLimit", eip1559Tx.gasLimit);
-        console.log("to", eip1559Tx.to);
-        console.log("value", eip1559Tx.value);
-        console.log("data");
-        console.logBytes(eip1559Tx.data);
-        console.log("v", eip1559Tx.v);
-        console.log("r");
-        console.logBytes32(eip1559Tx.r);
-        console.log("s");
-        console.logBytes32(eip1559Tx.s);
+        // console.log("chainId", eip1559Tx.chainId);
+        // console.log("nonce", eip1559Tx.nonce);
+        // console.log("maxPriorityFeePerGas", eip1559Tx.maxPriorityFeePerGas);
+        // console.log("maxFeePerGas", eip1559Tx.maxFeePerGas);
+        // console.log("gasLimit", eip1559Tx.gasLimit);
+        // console.log("to", eip1559Tx.to);
+        // console.log("value", eip1559Tx.value);
+        // console.log("data");
+        // console.logBytes(eip1559Tx.data);
+        // console.log("v", eip1559Tx.v);
+        // console.log("r");
+        // console.logBytes32(eip1559Tx.r);
+        // console.log("s");
+        // console.logBytes32(eip1559Tx.s);
 
 
         // Receipt
