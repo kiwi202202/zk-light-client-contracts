@@ -27,25 +27,39 @@ contract ZKSpv is Ownable, IZKSpv {
         return success;
     }
 
-    function parseTxProof(bytes calldata proofData) external pure override returns (PublicInputParseLib.PublicInputData memory) {
+    function parseTxProof(bytes calldata proof) external pure override returns (PublicInputParseLib.PublicInputData memory) {
 
         uint256 ProofLength = 384;
         uint256 SplitStep = 32;
         uint256 TransactionSplitStart = ProofLength;// 384 is proof length
-        uint256 TrackBlockSplitStart = TransactionSplitStart + SplitStep * 14;
+        // uint256 TrackBlockSplitStart = TransactionSplitStart + SplitStep * 14;
 
         // Extracting tx_hash
-        bytes32 tx_hash = bytes32(uint256(bytes32(proofData[TransactionSplitStart+SplitStep*2:TransactionSplitStart+SplitStep*3])) << 128 | uint256(bytes32(proofData[TransactionSplitStart+SplitStep*3:TransactionSplitStart+SplitStep*4])));
+        bytes32 tx_hash = bytes32(
+            uint256(bytes32(proof[TransactionSplitStart + SplitStep * 2:TransactionSplitStart + SplitStep * 3])) << 128
+                | uint256(bytes32(proof[TransactionSplitStart + SplitStep * 3:TransactionSplitStart + SplitStep * 4]))
+        );
 
-        uint256 receipt_status = uint256(bytes32(proofData[TransactionSplitStart + SplitStep * 4:TransactionSplitStart + SplitStep * 5]));
+        uint256 receipt_status = uint256(bytes32(proof[TransactionSplitStart + SplitStep * 4:TransactionSplitStart + SplitStep * 5]));
         // Extracting commit_tx_block_hash
-        bytes32 commit_tx_block_hash = bytes32(uint256(bytes32(proofData[TransactionSplitStart:TransactionSplitStart+SplitStep])) << 128 | uint256(bytes32(proofData[TransactionSplitStart+SplitStep:TransactionSplitStart+SplitStep*2])));
+        bytes32 commit_tx_block_hash = bytes32(
+            uint256(bytes32(proof[TransactionSplitStart + SplitStep * 5:TransactionSplitStart + SplitStep * 6])) << 128
+                | uint256(bytes32(proof[TransactionSplitStart + SplitStep * 6:TransactionSplitStart + SplitStep * 7]))
+        );
 
         // Extracting commit_tx_batch_target_block_hash
-        bytes32 commit_tx_batch_target_block_hash = bytes32(uint256(bytes32(proofData[TrackBlockSplitStart+SplitStep*2:TrackBlockSplitStart+SplitStep*3])) << 128 | uint256(bytes32(proofData[TrackBlockSplitStart+SplitStep*3:TrackBlockSplitStart+SplitStep*4])));
+        bytes32 commit_tx_batch_target_block_hash = bytes32(
+            uint256(bytes32(proof[TransactionSplitStart + SplitStep * 10:TransactionSplitStart + SplitStep * 11]))
+                << 128
+                | uint256(bytes32(proof[TransactionSplitStart + SplitStep * 11:TransactionSplitStart + SplitStep * 12]))
+        );
 
         // Extracting merkle_root
-        bytes32 merkle_root = bytes32(uint256(bytes32(proofData[TrackBlockSplitStart:TrackBlockSplitStart+SplitStep])) << 128 | uint256(bytes32(proofData[TrackBlockSplitStart+SplitStep:TrackBlockSplitStart+SplitStep*2])));
+        bytes32 merkle_root = 	
+            bytes32(
+                uint256(bytes32(proof[TransactionSplitStart + SplitStep * 8:TransactionSplitStart + SplitStep * 9])) << 128
+                | uint256(bytes32(proof[TransactionSplitStart + SplitStep * 9:TransactionSplitStart + SplitStep * 10]))
+        );
 
         return PublicInputParseLib.PublicInputData({
             tx_hash: tx_hash,

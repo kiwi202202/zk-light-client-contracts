@@ -8,13 +8,12 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "solidity-rlp/contracts/RLPReader.sol";
 
 
-import "hardhat/console.sol";
-
 contract ZkLightClient is Ownable{
     struct Query {
         address user;
         uint256 timestamp;
         bool isSuccessful; // Indicates if the query is successful and refunded
+        bool receiptStatus; // L2 tx receipt status
     }
 
     struct EIP1559Transaction {
@@ -32,8 +31,8 @@ contract ZkLightClient is Ownable{
         bytes32 s;
     }
     
-    struct VerificationResult {
-        uint256 receipt_status;  
+    struct TxResult {
+        bool receipt_status;  
         EIP1559Transaction tx_fields;
     }
 
@@ -46,24 +45,24 @@ contract ZkLightClient is Ownable{
     event QueryWithdrawn(bytes32 indexed txHash, address indexed user);
 
     address public spvAddress;
-    address public manager;
+    address public dataManager;
 
     using RLPReader for RLPReader.RLPItem;
     using RLPReader for RLPReader.Iterator;
     using RLPReader for bytes;
 
-    constructor(address _owner, address _spvAddress, address _manager) Ownable(_owner){
+    constructor(address _owner, address _spvAddress, address _dataManager) Ownable(_owner){
         spvAddress = _spvAddress;
-        manager = _manager;
+        dataManager = _dataManager;
     }
 
-    // Setter functions for SPV and manager addresses, only callable by the owner
+    // Setter functions for SPV and dataManager addresses, only callable by the owner
     function setSpvAddress(address _spvAddress) external onlyOwner {
         spvAddress = _spvAddress;
     }
 
-    function setManager(address _manager) external onlyOwner {
-        manager = _manager;
+    function setManager(address _dataManager) external onlyOwner {
+        dataManager = _dataManager;
     }
 
     // Initiates a query or refuses if conditions are not met
@@ -81,15 +80,15 @@ contract ZkLightClient is Ownable{
         queries[txHash] = Query({
             user: msg.sender,
             timestamp: block.timestamp,
-            isSuccessful: false
+            isSuccessful: false,
+            receiptStatus: false
         });
 
         emit QueryInitiated(txHash, msg.sender, false);
     }
 
     // Verifies a query and refunds the user if successful
-    // TODO: spvAddress and manager should be set only once for each ZkLightClient contract
-    function verifyQuery(bytes32 txHash, bytes calldata proof, bytes memory rawTxData) external returns (VerificationResult memory) {
+    function verifyQuery(bytes32 txHash, bytes calldata proof) external {
         Query storage query = queries[txHash];
         require(query.user != address(0) && !query.isSuccessful, "Query non-existent or already successful");
 
@@ -100,39 +99,45 @@ contract ZkLightClient is Ownable{
         // Parse the public input data from the proof
         PublicInputParseLib.PublicInputData memory publicInputData = zkSpv.parseTxProof(proof);
 
-        // Verify Merkle root exists in the IORSpvData contract
-        ISpvData spvData = ISpvData(manager);
+        // Verify Merkle root exists in the ISpvData contract
+        ISpvData spvData = ISpvData(dataManager);
 
         require(
             spvData.getStartBlockNumber(publicInputData.merkle_root) != 0,
                 "Invalid Merkle root"
             );
 
-        // Verify the commit block hash and target block hash
+        // Verify that the commit block hash and target block hash are consistent
         require(
                 publicInputData.commit_tx_block_hash == publicInputData.commit_tx_batch_target_block_hash,
                 "Commit block hash does not match target block hash in batch"
             );
 
+        // Verify that the query txHash and the txHash of the proof are consistent
         require(publicInputData.tx_hash == txHash, "Tx Hash in proof public data does not match target tx Hash.");
-        // console.log("public input data tx_hash:");
-        // console.logBytes32(publicInputData.tx_hash);
 
-        // Raw data
-        // console.logString("rawTxData:");
-        // console.logBytes(rawTxData);
+        query.isSuccessful = true;
+        query.receiptStatus = publicInputData.receipt_status != 0;
+
+        payable(query.user).transfer(LOCK_AMOUNT);
+        emit QueryVerified(txHash, query.user, true);
+    }
+
+
+    function decodeTxRawData(bytes memory rawTxData, bytes32 txHash) external view returns (TxResult memory) {
+        // Ensure the query is existent and successfully processed
+        Query storage query = queries[txHash];
+        require(query.user != address(0) && query.isSuccessful, "Query non-existent or not yet successful");
+
+        // Verify that the rawTxData Hash and the txHash of the query are consistent
         bytes32 computedHash = keccak256(rawTxData);
 
         require(computedHash == txHash, "Computed Hash does not match tx Hash.");
-        // console.logString("computedHash:");
-        // console.logBytes32(computedHash);
 
+        // RLP decoding for rawTxData
         bytes memory actualRlpData = slice(rawTxData, 1, rawTxData.length - 1);
 
         RLPReader.RLPItem[] memory ls = actualRlpData.toRlpItem().toList();
-
-        // console.logString("actualRlpData:");
-        // console.logBytes(actualRlpData);
 
         EIP1559Transaction memory eip1559Tx = EIP1559Transaction({
             chainId: ls[0].toUint(),
@@ -155,31 +160,11 @@ contract ZkLightClient is Ownable{
             eip1559Tx.s = bytes32(ls[11].toBytes());
         }
 
-        // console.log("chainId", eip1559Tx.chainId);
-        // console.log("nonce", eip1559Tx.nonce);
-        // console.log("maxPriorityFeePerGas", eip1559Tx.maxPriorityFeePerGas);
-        // console.log("maxFeePerGas", eip1559Tx.maxFeePerGas);
-        // console.log("gasLimit", eip1559Tx.gasLimit);
-        // console.log("to", eip1559Tx.to);
-        // console.log("value", eip1559Tx.value);
-        // console.log("data");
-        // console.logBytes(eip1559Tx.data);
-        // console.log("v", eip1559Tx.v);
-        // console.log("r");
-        // console.logBytes32(eip1559Tx.r);
-        // console.log("s");
-        // console.logBytes32(eip1559Tx.s);
-
-
         // Receipt
-        VerificationResult memory result = VerificationResult({
-            receipt_status: publicInputData.receipt_status,
+        TxResult memory result = TxResult({
+            receipt_status: query.receiptStatus,
             tx_fields: eip1559Tx
         });
-
-        query.isSuccessful = true;
-        payable(query.user).transfer(LOCK_AMOUNT);
-        emit QueryVerified(txHash, query.user, true);
 
         return result;
     }
@@ -201,9 +186,9 @@ contract ZkLightClient is Ownable{
     }
 
     // Retrieves the status of a specific query
-    function getQueryStatus(bytes32 txHash) public view returns (address user, uint256 timestamp, bool isSuccessful) {
+    function getQueryStatus(bytes32 txHash) public view returns (address user, uint256 timestamp, bool isSuccessful, bool receiptStatus) {
         Query storage query = queries[txHash];
-        return (query.user, query.timestamp, query.isSuccessful);
+        return (query.user, query.timestamp, query.isSuccessful, query.receiptStatus);
     }
 
 
