@@ -40,7 +40,7 @@ contract ZkLightClient is Ownable{
     uint256 public constant LOCK_AMOUNT = 0.05 ether;
     uint256 public constant TIMEOUT = 1 days;  // Time after which an unsuccessful query can be reset
 
-    event QueryInitiated(bytes32 indexed txHash, address indexed user, bool isSuccessful);
+    event QueryInitiated(bytes32 indexed txHash, address indexed user, bool isSuccessful, uint256 timestamp);
     event QueryVerified(bytes32 indexed txHash, address indexed user, bool isSuccessful);
     event QueryWithdrawn(bytes32 indexed txHash, address indexed user);
 
@@ -84,7 +84,7 @@ contract ZkLightClient is Ownable{
             receiptStatus: false
         });
 
-        emit QueryInitiated(txHash, msg.sender, false);
+        emit QueryInitiated(txHash, msg.sender, false, block.timestamp);
     }
 
     // Verifies a query and refunds the user if successful

@@ -2,7 +2,7 @@ import { ethers } from "hardhat";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const verifierContractAddress = "0x7739C3D3C9eeB02a808A2c496374e45b48e7E0a6";
+  const verifierContractAddress = "0x2F117e5706Ece40e1F1F52b1067DE05b6156676F";
 
   // Get the ContractFactory and signers
   const ZKSpv = await ethers.getContractFactory("ZKSpv");
